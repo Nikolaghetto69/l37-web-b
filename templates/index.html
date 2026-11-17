@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IT-помощник лицея №37</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+            background: #f0f2f5; display: flex; justify-content: center;
+            align-items: center; height: 100vh; margin: 0; }
+        .chat-container { width: 100%; max-width: 420px; height: 640px;
+            background: #fff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+            display: flex; flex-direction: column; overflow: hidden; }
+        .header { background: #0055a4; color: #fff; padding: 16px;
+            text-align: center; font-weight: 600; font-size: 15px; }
+        .header small { display: block; font-weight: 400; font-size: 12px; opacity: 0.85; margin-top: 2px; }
+        .admin-badge { display: none; background: #d35400; color: #fff;
+            font-size: 12px; padding: 4px 10px; text-align: center; }
+        .admin-badge.active { display: block; }
+        .chat-box { flex: 1; padding: 16px; overflow-y: auto;
+            display: flex; flex-direction: column; gap: 10px; }
+        .message { max-width: 80%; padding: 10px 14px; border-radius: 12px;
+            font-size: 14px; line-height: 1.45; word-wrap: break-word; white-space: pre-wrap; }
+        .user { align-self: flex-end; background: #dcf8c6; border-bottom-right-radius: 4px; }
+        .bot { align-self: flex-start; background: #f1f0f0; border-bottom-left-radius: 4px; }
+        .input-area { display: flex; padding: 12px; border-top: 1px solid #e4e6eb; background: #fff; }
+        input[type="text"] { flex: 1; padding: 10px 14px; border: 1px solid #ddd;
+            border-radius: 20px; outline: none; font-size: 14px; }
+        input[type="text"]:focus { border-color: #0055a4; }
+        button { margin-left: 8px; padding: 10px 18px; background: #0055a4;
+            color: #fff; border: none; border-radius: 20px; cursor: pointer; font-size: 14px; }
+        button:hover { background: #00407a; }
+        button:disabled { background: #9bb8d6; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="header">
+            IT-помощник лицея №37
+            <small>IT-отдел · МБОУ «Многопрофильный лицей №37»</small>
+        </div>
+        <div class="admin-badge" id="adminBadge">Режим администратора</div>
+        <div class="chat-box" id="chatBox">
+            <div class="message bot">Здравствуйте! Опишите проблему — я подскажу, в какую службу обратиться, или оформлю заявку.</div>
+        </div>
+        <div class="input-area">
+            <input type="text" id="userInput" placeholder="Опишите проблему..." autocomplete="off" onkeypress="handleKeyPress(event)">
+            <button id="sendBtn" onclick="sendMessage()">Отправить</button>
+        </div>
+    </div>
+
+    <script>
+        const chatBox = document.getElementById('chatBox');
+        const userInput = document.getElementById('userInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const adminBadge = document.getElementById('adminBadge');
+
+        let awaitingRequest = false;
+        let isAdmin = false;
+
+        function addMessage(text, sender) {
+            const div = document.createElement('div');
+            div.className = `message ${sender}`;
+            div.textContent = text;
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        async function sendMessage() {
+            const message = userInput.value.trim();
+            if (!message) return;
+            addMessage(message, 'user');
+            userInput.value = '';
+            userInput.focus();
+            sendBtn.disabled = true;
+            try {
+                let url = '/get_response';
+                if (awaitingRequest && !isAdmin) url = '/submit_request';
+                const resp = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: message, text: message })
+                });
+                const data = await resp.json();
+                addMessage(data.response, 'bot');
+
+                if (data.tag === 'request') awaitingRequest = true;
+                else if (awaitingRequest && data.ok === true) awaitingRequest = false;
+
+                if (data.tag === 'admin_on') { isAdmin = true; adminBadge.classList.add('active'); }
+                else if (data.tag === 'admin_off') { isAdmin = false; adminBadge.classList.remove('active'); }
+            } catch (err) {
+                addMessage('Ошибка соединения с сервером. Попробуйте ещё раз.', 'bot');
+            } finally {
+                sendBtn.disabled = false;
+                userInput.focus();
+            }
+        }
+
+        function handleKeyPress(e) { if (e.key === 'Enter') sendMessage(); }
+        userInput.focus();
+    </script>
+</body>
+</html>
